@@ -1,7 +1,7 @@
 {
     "patched":  "b0119dc873b490a1694647ff77c68b42efc879ce",
     "version":  "0.1.1564-local1",
-    "published":  "2026-10-26T05:04:22Z",
+    "published":  "2026-10-26T05:05:09Z",
     "assets":  {
                    "magpie-windows-amd64.exe":  {
                                                     "url":  "https://github.com/MYCF711/magpie/releases/download/v0.1.1564-local1/magpie-windows-amd64.exe",
