@@ -2,12 +2,12 @@
     "assets":  {
                    "magpie-windows-amd64.exe":  {
                                                     "url":  "https://github.com/MYCF711/magpie/releases/download/v0.1.1564-local1/magpie-windows-amd64.exe",
-                                                    "sha256":  "9ecb154d1c05286aa86f8f7173e5ab37ef75d34e3f27f05373b3f1f423db5065",
+                                                    "sha256":  "8a10e228f7576c5a85a8377bbe356aa8bda8ed3f1f98261e63ddfed26f12817d",
                                                     "size":  59836416
                                                 }
                },
     "url":  "https://github.com/MYCF711/magpie/releases/tag/v0.1.1564-local1",
     "version":  "0.1.1564-local1",
-    "published":  "2026-10-26T05:00:02Z",
-    "notes":  "本机构建：上游 v0.1.1564-local1 加本地补丁。\n\n- loomy 的「内容太长了，请精简输入或开启新对话」被认作上下文溢出，于是换下一个成员而不是把账号 rest 掉\n- 路由「勤俭持家」（frugal/expiring）：先花不花钱的，再花最快到期的，最后才动永不过期的"
+    "published":  "2026-10-26T05:02:45Z",
+    "notes":  "本机构建：上游 v0.1.1564 加本地补丁（0.1.1564-local1）。\n\n- loomy 的「内容太长了，请精简输入或开启新对话」被认作上下文溢出，于是换下一个成员而不是把账号 rest 掉\n- 路由「勤俭持家」（frugal/expiring）：先花不花钱的，再花最快到期的，最后才动永不过期的"
 }
