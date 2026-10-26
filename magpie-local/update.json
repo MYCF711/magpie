@@ -1,14 +1,14 @@
 {
     "patched":  "b0119dc873b490a1694647ff77c68b42efc879ce",
-    "version":  "0.1.1564-mg1",
-    "published":  "2026-10-26T05:07:10Z",
+    "version":  "0.1.1564-mg.1",
+    "published":  "2026-10-26T05:19:06Z",
     "assets":  {
                    "magpie-windows-amd64.exe":  {
-                                                    "url":  "https://github.com/MYCF711/magpie/releases/download/v0.1.1564-mg1/magpie-windows-amd64.exe",
-                                                    "sha256":  "ac4ba3f2247924dae30b49118381e442e3144c8a59830fcfa0c39e8359ec883b",
+                                                    "url":  "https://github.com/MYCF711/magpie/releases/download/v0.1.1564-mg.1/magpie-windows-amd64.exe",
+                                                    "sha256":  "8c861c20c1d9558c6882781df01655bccc1048f9638979ba7098d7cb847ab310",
                                                     "size":  59836416
                                                 }
                },
-    "url":  "https://github.com/MYCF711/magpie/releases/tag/v0.1.1564-mg1",
-    "notes":  "本机构建：上游 v0.1.1564 加本地补丁（0.1.1564-mg1）。\n\n- loomy 的「内容太长了，请精简输入或开启新对话」被认作上下文溢出，于是换下一个成员而不是把账号 rest 掉\n- 路由「勤俭持家」（frugal/expiring）：先花不花钱的，再花最快到期的，最后才动永不过期的"
+    "url":  "https://github.com/MYCF711/magpie/releases/tag/v0.1.1564-mg.1",
+    "notes":  "本机构建：上游 v0.1.1564 加本地补丁（0.1.1564-mg.1）。\n\n- loomy 的「内容太长了，请精简输入或开启新对话」被认作上下文溢出，于是换下一个成员而不是把账号 rest 掉\n- 路由「勤俭持家」（frugal/expiring）：先花不花钱的，再花最快到期的，最后才动永不过期的"
 }
