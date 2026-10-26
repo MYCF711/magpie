@@ -1783,6 +1783,10 @@ function routingPage(part) {
   // otherwise vanish from the stage (#2129, wyq0x55: d-task's gpt-sol-6.1,
   // used up, wasn't shown while a used-up Claude was).
   const heldOut = (w) => !w.held && !!(w.capped || w.noCredits);
+  // smallWord: why this request passed it over — its model's window is known
+  // to take less than the request holds (Route.Small). The row is drawn at its
+  // place all the same, so every member of the group is on the page.
+  const smallWord = () => t("this request is longer than its window, so it was passed over");
   function seated(r) {
     const members = r.group?.members || [];
     const key = (w) => {
@@ -1796,7 +1800,8 @@ function routingPage(part) {
     };
     const on = new Set(r.order.map(seat));
     // each one's key made once, not at each comparison (#3164)
-    return [...r.order, ...(r.left || []).filter((w) => heldOut(w) && !on.has(seat(w)))]
+    return [...r.order, ...(r.left || []).filter((w) => heldOut(w) && !on.has(seat(w))),
+      ...(r.small || []).filter((w) => !on.has(seat(w)))]
       .map((w) => [key(w), w]).sort((a, b) => cmp(a[0], b[0])).map(([, w]) => w);
   }
 
@@ -1826,7 +1831,7 @@ function routingPage(part) {
   // r.order, r.tries and r.left as lists everywhere — one null threw in
   // pick, and clicking such a request (a refused one) opened nothing
   const whole = (r) => {
-    if (r) { r.order ||= []; r.tries ||= []; r.left ||= []; }
+    if (r) { r.order ||= []; r.tries ||= []; r.left ||= []; r.small ||= []; }
     return r;
   };
 
@@ -2066,7 +2071,10 @@ function routingPage(part) {
       const r = latest.get(k);
       for (const w of seated(r)) { const id = seat(w); if (!has.has(id)) { has.add(id); ids.push(id); } }
     }
-    for (const r of rs) for (const w of [...r.order, ...(r.left || [])]) { wOf.set(seat(w), w); rOf.set(seat(w), r.id); }
+    // Small seats are drawn by seated too, so they need their own copy of the
+    // Weighed and of the route: registered from Order and Left alone they came
+    // out undefined, and the whole stage failed to draw.
+    for (const r of rs) for (const w of [...r.order, ...(r.left || []), ...(r.small || [])]) { wOf.set(seat(w), w); rOf.set(seat(w), r.id); }
     // where each was, of those on the stage: a key folded away was nowhere
     const before = new Map([...[...rows].map(([id, row]) => [id, row.li]), ...[...folds].map(([k, f]) => ["\u0001" + k, f.li])]
       .filter(([, li]) => li.isConnected).map(([id, li]) => [id, li.getBoundingClientRect().top]));
@@ -2284,8 +2292,12 @@ function routingPage(part) {
       // rest with it (#1960)
       const r = src().get(row.rid) || pinned || cur, { answered, rests, gave, went } = findings(r);
       const w = row.w, rest = rests.get(w.id) || rests.get(w.id + "\u0000" + (w.model || "")), resting = rest && at(rest.until) > n;
+      // of this request's own seats, one roomy held out for its size: not in
+      // Order at all, so it is known by Route.Small alone
+      const oversize = !r.order.some((x) => seat(x) === seat(w)) && (r.small || []).some((x) => seat(x) === seat(w));
       let s;
       if (w.unlisted) s = unlistedWord(w);
+      else if (oversize) s = smallWord();
       else if (resting) s = `${failWord(rest.why)} · ${restWhen(rest)}`;
       // a row another request weighed, answering that one: the header
       // tells of this request, so it says the answer is not this one's
@@ -2325,7 +2337,7 @@ function routingPage(part) {
       lightRow(row.li, row.wire, on, flying);
       row.li.classList.toggle("low", !!(!w.routing && w.known && w.used >= 90));
       row.li.classList.toggle("rest", !!resting || gave.has(id));
-      row.li.classList.toggle("left", !!w.unlisted);
+      row.li.classList.toggle("left", !!w.unlisted || oversize);
       if (on) row.wire.style.setProperty("--agent", hueOf(r.agent));
       row.wire.classList.toggle("rest", !!resting || !!w.unlisted);
     }
@@ -5740,7 +5752,11 @@ function routingPage(part) {
     listW.append(listPick, listHint);
     ed.append(el("label", "", t("Model lists")), listW);
 
-    const gHint = (v) => GROUP_HINT[v] ? t(GROUP_HINT[v]) : MODES[v] || !v ? t(GROUP_HINT[""]) : modeOf(v)[1];
+    // A routing this page has a description for says that description. The old
+    // ternary read `MODES[v] || !v` first, so every routing named in MODES (a
+    // gateway plugin's) fell through to Smart's words: picking one explained
+    // Smart underneath it.
+    const gHint = (v) => GROUP_HINT[v] ? t(GROUP_HINT[v]) : MODES[v] ? t(MODES[v][1]) : !v ? t(GROUP_HINT[""]) : modeOf(v)[1];
     const rHint = el("div", "hint", gHint(d.routing));
     const rw = el("div");
     rw.append(routingSegs(withJS(GROUP_ROUTE_OPTS, d.routing).map(([id, n, js]) => [id, t(n), , js]), d.routing, (v) => { d.routing = v; rHint.textContent = gHint(v); draw(); drawRules(); drawSink(); }), rHint);
@@ -6566,7 +6582,11 @@ function routingPage(part) {
         ctl.append(k);
       }
       row.append(nm, ctl);
-      row.title = p.who.join(", ");
+      // The accounts' names go on the name, not on the whole row: a title on
+      // the row is the nearest one for every control inside it, so putting the
+      // pointer on a Routing option showed the accounts' names over the very
+      // buttons being reached for. The row keeps none.
+      nm.title = p.who.join(", ");
       return row;
     }));
   }

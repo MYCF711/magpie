@@ -88,7 +88,14 @@ type Route struct {
 	Pinned   string       `json:"pinned,omitempty"`   // the account AccountHeader named: only it was tried
 	Order    []Weighed    `json:"order"`              // who was to try it, first first
 	Left     []Weighed    `json:"left,omitempty"`
-	Tries    []Try        `json:"tries"`
+	// Small: seats roomy held out of Order because their model's window is
+	// known to take less than this request would. They are not resting, not
+	// barred and not out of allowance — they are tried once every one with
+	// room is spent — but they are not in Order either, so the Routing page
+	// drew no row for them at all: a group of six members listed thirteen
+	// seats with one member nowhere on the page, and nothing said of it.
+	Small []Weighed `json:"small,omitempty"`
+	Tries []Try     `json:"tries"`
 	// Masked: what masking swapped in the request before it went, nil
 	// for nothing (noteMasked)
 	Masked *Masked `json:"masked,omitempty"`
@@ -708,6 +715,7 @@ func (t *trace) update(r *Route, f func(r *Route)) {
 			c := *r
 			c.Order = append([]Weighed{}, r.Order...) // [] for none: the GUI reads it as a list
 			c.Left = append([]Weighed(nil), r.Left...)
+			c.Small = append([]Weighed(nil), r.Small...)
 			c.Tries = append([]Try{}, r.Tries...)
 			c.Usage = append([]RouteUsage(nil), r.Usage...)
 			go saveRoute(c)
@@ -862,6 +870,7 @@ func (s *Server) Trace(ctx context.Context, after int64, wait time.Duration) Tra
 				c := *r
 				c.Order = append([]Weighed{}, r.Order...) // [] for none: the GUI reads it as a list
 				c.Left = append([]Weighed(nil), r.Left...)
+				c.Small = append([]Weighed(nil), r.Small...)
 				c.Tries = append([]Try{}, r.Tries...)
 				c.Usage = append([]RouteUsage(nil), r.Usage...)
 				st.Routes = append(st.Routes, c)
