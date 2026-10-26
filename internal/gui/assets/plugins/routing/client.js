@@ -490,6 +490,11 @@ function routingPage(part) {
     // language is already spoken
     weight: ["By weight", "Requests spread over the keys by the weight set beside each: a key weighing 3 takes three requests for every one a key weighing 1 takes, evenly over a few requests. One that fails is passed over while it rests, and the others share its requests; a conversation stays with its key as Stays says."],
     free: ["Free first", "Requests go to what costs nothing first: the models their vendor serves at no cost to this subscription's allowance or credits, in their listed order, and only when those can't answer to one that spends them. Nothing that cost nothing is left unused."],
+    // magpie's own routing in internal/routes (RouteID "frugal/expiring"): it
+    // spends what is lost soonest first. Named here so a group's and a
+    // provider's editor offer it — a routing magpie serves but this page does
+    // not know is one the reader cannot pick.
+    "frugal/expiring": ["Frugal", "What costs nothing is spent first, then what is lost soonest: a daily grant before a package ending in a month, and what never expires last of all. The seat whose allowance would be lost first answers first, so none of it goes to waste."],
   };
   // modeOf: a routing's name and what it does, a JS gateway plugin's
   // ("<plugin>/<name>", app.js jsRoutings) as it is named, served or not
@@ -4389,7 +4394,7 @@ function routingPage(part) {
   // after the requests: a request picked in the list plays on the stage,
   // so the list sits right under it
   more.append(gsec);
-  const ROUTE_OPTS = [["", "Smart"], ["order", "In order"], ["rotate", "In turn"], ["usage", "Least used"], ["pace", "Weekly pace"], ["free", "Free first"]];
+  const ROUTE_OPTS = [["", "Smart"], ["order", "In order"], ["rotate", "In turn"], ["usage", "Least used"], ["pace", "Weekly pace"], ["free", "Free first"], ["frugal/expiring", "Frugal"]];
   // a group may also be routed by hand: every request to the member the
   // user picks on its card (provider.Manual, #317) — a provider's keys can't
   // and by its members' weights, as a provider's keys are (#1910)
@@ -4436,6 +4441,9 @@ function routingPage(part) {
     weight: GROUP_WEIGHT,
     free: "Free first: the members whose model its vendor serves at no cost to the subscription's allowance or credits go first, then the rest — each whole, over its own accounts or keys as its provider routes them. The free ones are tried before any that spends, so nothing that costs nothing is left unused.",
     manual: "Manual: every request goes to the model you pick on the group's card, over its own accounts or keys; the others, and the rules, wait until you pick another — none takes over when it fails.",
+    // the frugal routing's own words, as MODES has them above: a group is
+    // routed whole, so its editor says what the routing does to the group
+    "frugal/expiring": "Frugal: what costs nothing is spent first, then what is lost soonest — a daily grant before a package ending in a month, and what never expires last of all. The seat whose allowance would be lost first answers first, so none of it goes to waste.",
   };
   // a group in the group, and a provider set to route other than Smart, is
   // routed by its own routing, whatever this one's (planLevel, #576,
