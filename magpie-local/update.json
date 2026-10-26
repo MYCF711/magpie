@@ -1,12 +1,12 @@
 {
-    "patched":  "669b13d13d4ad7e1e181db652d76522d7f64f76c",
+    "patched":  "83b7327448f9be8843f3139cf759976fa06d61bf",
     "version":  "0.1.1564-mg.1",
-    "published":  "2026-10-26T13:22:21Z",
+    "published":  "2026-10-26T14:22:32Z",
     "assets":  {
                    "magpie-windows-amd64.exe":  {
                                                     "url":  "https://github.com/MYCF711/magpie/releases/download/v0.1.1564-mg.1/magpie-windows-amd64.exe",
-                                                    "sha256":  "31c0d0d72a8a3510fe8071801e5ce43da1f77512d82be3859984a95233742890",
-                                                    "size":  60389376
+                                                    "sha256":  "fbd900e0144f8b5558ac26bf4101a1176ca8945d98a5ea3b866e640c5662820d",
+                                                    "size":  60390400
                                                 }
                },
     "url":  "https://github.com/MYCF711/magpie/releases/tag/v0.1.1564-mg.1",
