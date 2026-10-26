@@ -7284,8 +7284,11 @@ func writeErrorSaid(w http.ResponseWriter, proto provider.Protocol, status int, 
 // model_context_window_exceeded, Ollama's "exceeded max context length",
 // DashScope's "Range of input length should be", "token limit exceeded",
 // a relay's own cap on one request's input, "Input token exceed the limit"
-// (#2445: B.ai, under the model's window, which another member holds).
-var tooLongRe = regexp.MustCompile(`(?i)context_length_exceeded|prompt is too long|input is too long|(exceeds?|exceeded|over|beyond)( the)?( model'?s?)?( maximum)? context|context (length|limit|window) (exceeded|is exceeded)|maximum context length|too many (input |prompt )?tokens|上下文(长度)?(超|过长)|超(过|出)(了)?(模型)?(的)?(最大)?上下文` +
+// (#2445: B.ai, under the model's window, which another member holds), and
+// Loomy's "内容太长了，请精简输入或开启新对话" (#3654: 内容 too long, said
+// without naming the context at all, so the two wordings above missed it
+// and the refusal was read as another error that rests the account).
+var tooLongRe = regexp.MustCompile(`(?i)context_length_exceeded|prompt is too long|input is too long|(exceeds?|exceeded|over|beyond)( the)?( model'?s?)?( maximum)? context|context (length|limit|window) (exceeded|is exceeded)|maximum context length|too many (input |prompt )?tokens|上下文(长度)?(超|过长)|超(过|出)(了)?(模型)?(的)?(最大)?上下文|内容(太|过)长` +
 	`|input token count.*exceeds the maximum|maximum prompt length is \d|reduce the length of the messages|maximum allowed input length|longer than the model'?s context length|available context size|greater than the context length|prompt token count of [\d,]+ exceeds the limit|context window exceeds limit|exceeded model token limit|configured context size|prompt too long|prompt exceeds max length|context_window_exceeded|exceeded (max |maximum )?context length|range of input length should be|token limit exceeded|input tokens? (count )?(exceeds?|exceeded) (the )?(max(imum)? )?limit`)
 
 // overflowed says a refused request was too long for the model — a
@@ -7316,7 +7319,10 @@ func tooLong(status int, msg string) bool {
 }
 
 // paceWords say a limit on how fast or how much, not on one prompt's size.
-var paceWords = regexp.MustCompile(`(?i)rate.?limit|per (minute|hour|day)|\bTP[MD]\b|please wait|try again later|throttl`)
+// The Chinese wordings are the ones a vendor that answers in Chinese uses
+// (速率限制, 请求太频繁); without them a pace limit worded beside a size
+// complaint was read as the size alone (#3654).
+var paceWords = regexp.MustCompile(`(?i)rate.?limit|per (minute|hour|day)|\bTP[MD]\b|please wait|try again later|throttl|速率限制|频率限制|请求(太|过)频|稍后再试|限流`)
 
 // splitSent tells what of sent, the ms from the request (start) to its
 // answering try's body written, was magpie's own work, the tries that

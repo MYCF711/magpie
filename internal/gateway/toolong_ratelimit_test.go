@@ -19,6 +19,10 @@ func TestRateLimitNotContextOverflow(t *testing.T) {
 		"Bedrock: Too many tokens, please wait before trying again.",
 		"Bedrock: Too many tokens per day, please wait before trying again.",
 		"Cerebras: Tokens per minute limit exceeded - too many tokens processed.",
+		// a pace limit worded in Chinese beside a size complaint: read as
+		// the size alone it would rest the account on a momentary cap
+		"Loomy: 内容太长，已达到速率限制",
+		"Loomy: 请求太频繁，请稍后再试",
 	} {
 		for _, proto := range []provider.Protocol{provider.Anthropic, provider.Chat, provider.Responses} {
 			w := httptest.NewRecorder()
