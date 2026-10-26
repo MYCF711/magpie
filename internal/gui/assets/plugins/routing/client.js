@@ -490,6 +490,11 @@ function routingPage(part) {
     // language is already spoken
     weight: ["By weight", "Requests spread over the keys by the weight set beside each: a key weighing 3 takes three requests for every one a key weighing 1 takes, evenly over a few requests. One that fails is passed over while it rests, and the others share its requests; a conversation stays with its key as Stays says."],
     free: ["Free first", "Requests go to what costs nothing first: the models their vendor serves at no cost to this subscription's allowance or credits, in their listed order, and only when those can't answer to one that spends them. Nothing that cost nothing is left unused."],
+    // the frugal routing (internal/routes, RouteID "frugal/expiring"): it
+    // spends what is lost soonest first. Named here so a group's editor offers
+    // it beside the others — a routing magpie serves but this page does not
+    // know is one the reader cannot pick.
+    "frugal/expiring": ["Frugal", "Frugal: what costs nothing is spent first, then what is lost soonest — the daily grant before a package ending in a month, and what never expires last of all. The account whose allowance would be lost first answers first, so none of it goes to waste."],
   };
   // modeOf: a routing's name and what it does, a JS gateway plugin's
   // ("<plugin>/<name>", app.js jsRoutings) as it is named, served or not
@@ -535,6 +540,10 @@ function routingPage(part) {
   // noURLWord: its keys are all set to a protocol its provider has no URL
   // for, so it went out on the URLs it has (#1702)
   const noURLWord = (w) => t("key set to {api} only, no {api} URL · sent on the others", { api: API[w.noURL] || w.noURL });
+  // smallWord: why this request passed it over — its model's window is known
+  // to take less than the request holds (Route.Small). The row is drawn at its
+  // place all the same, so the group's members are all on the page.
+  const smallWord = () => t("this request is longer than its window, so it was passed over");
   const group = (w) => w.used >= 98 ? "spent" : w.used >= 90 ? "low" : "fine";
   const renews = (w) => (w.renews || []).map((s) => known0(s) ? at(s) : 0);
   // usedRenews is when the window w.used is the share of renews: a row
@@ -798,6 +807,10 @@ function routingPage(part) {
     }
     const pooled = r.order.find((x) => !x.aside && x.kind === "key");
     for (const x of r.order.filter((x) => x.aside)) out.push(t("{who} is made for {api}, not {other} as the keys routed over are, so it isn't one of them: it's tried after them.", { who: who(x), api: API[x.speaks] || x.speaks || t("any API"), other: API[pooled?.speaks] || pooled?.speaks || t("any API") }));
+    // those held out for this request's size: not resting, not barred — the
+    // request is simply longer than the model's window. Not in Order, so they
+    // are read from Small.
+    for (const x of r.small || []) out.push(t("{who} was passed over: this request is longer than its window, so it would only refuse it.", { who: who(x) }));
     for (const x of r.left || []) out.push(x.held
       ? t("{who} is left out: the gateway key asking may not use its account.", { who: who(x) })
       : x.noCredits
@@ -1279,12 +1292,45 @@ function routingPage(part) {
   // folded; accounts and a group in the group start folded when LONG or
   // more of them, else open. Which the reader opened or folded is kept, by
   // provider and model, or "group/<id>", whatever the default.
+  // Allowances: declared here, ahead of the read below — a `let` further down
+  // the file is still uninitialized when the first read runs, and the whole
+  // page stops on that (measured: "Cannot access 'localQuotas' before
+  // initialization"). Everything here is also wrapped so a failure can never
+  // take the page down with it.
+  let localQuotas = null;
+  let localTrying = null;
+  // asked for again until it comes: this runs as the page loads, and the app's
+  // own bindings are handed to the page a moment later — a read that early
+  // fails, so the read is kept up rather than counted as done.
+  function askQuotas() {
+    if (localQuotas && localQuotas.length) return Promise.resolve(localQuotas);
+    if (localTrying) return localTrying;
+    localTrying = (async () => {
+      try {
+        const q = await api("usage/quotas");
+        if (Array.isArray(q) && q.length) {
+          localQuotas = q;
+          if (window.__dbgQ) window.__dbgQ.push({ got: q.length });
+        }
+      } catch (e) {
+        if (window.__dbgQ) window.__dbgQ.push({ err: String(e).slice(0, 90) });
+      } finally { localTrying = null; }
+      if (localQuotas && localQuotas.length) { try { render(); } catch (e) { console.warn("routing: redraw", e); } }
+      return localQuotas;
+    })();
+    return localTrying;
+  }
+  const localQuotaTimer = setInterval(() => {
+    if (localQuotas && localQuotas.length) { clearInterval(localQuotaTimer); return; }
+    askQuotas();
+  }, 2000);
   const FOLD_AT = 3, LONG = 6;
   const folds = new Map();  // foldKey → { li, wire, st, tg, n, w, ids, up, open, pk }
   let keysOpen = new Set(), keysShut = new Set();
   try { keysOpen = new Set(JSON.parse(localStorage.getItem("magpie.routingKeysOpen") || "[]")); } catch {}
   try { keysShut = new Set(JSON.parse(localStorage.getItem("magpie.routingFolded") || "[]")); } catch {}
   const isOpen = (k, dflt) => keysShut.has(k) ? false : keysOpen.has(k) ? true : dflt;
+  try { askQuotas(); } catch (e) { console.warn("routing: allowances", e); }
   function keepOpen(k, open) {
     if (open) { keysOpen.add(k); keysShut.delete(k); } else { keysOpen.delete(k); keysShut.add(k); }
     try {
@@ -1783,6 +1829,12 @@ function routingPage(part) {
   // otherwise vanish from the stage (#2129, wyq0x55: d-task's gpt-sol-6.1,
   // used up, wasn't shown while a used-up Claude was).
   const heldOut = (w) => !w.held && !!(w.capped || w.noCredits);
+  // oversize: a member whose model's window is known to take less than this
+  // request held (roomy). The gateway took it out of Order, so it had no row
+  // at all and a group of six members listed thirteen seats with one member
+  // nowhere on the page — not resting, not barred, not out of allowance, and
+  // nothing said of it. It is drawn at its place in the group's order, saying
+  // why this request passed it by.
   function seated(r) {
     const members = r.group?.members || [];
     const key = (w) => {
@@ -1796,7 +1848,8 @@ function routingPage(part) {
     };
     const on = new Set(r.order.map(seat));
     // each one's key made once, not at each comparison (#3164)
-    return [...r.order, ...(r.left || []).filter((w) => heldOut(w) && !on.has(seat(w)))]
+    return [...r.order, ...(r.left || []).filter((w) => heldOut(w) && !on.has(seat(w))),
+      ...(r.small || []).filter((w) => !on.has(seat(w)))]
       .map((w) => [key(w), w]).sort((a, b) => cmp(a[0], b[0])).map(([, w]) => w);
   }
 
@@ -1826,7 +1879,7 @@ function routingPage(part) {
   // r.order, r.tries and r.left as lists everywhere — one null threw in
   // pick, and clicking such a request (a refused one) opened nothing
   const whole = (r) => {
-    if (r) { r.order ||= []; r.tries ||= []; r.left ||= []; }
+    if (r) { r.order ||= []; r.tries ||= []; r.left ||= []; r.small ||= []; }
     return r;
   };
 
@@ -1957,9 +2010,12 @@ function routingPage(part) {
     let f = folds.get(key);
     if (!f) {
       const li = el("li", "rt-fold"), b = el("b"), st = el("em"), tg = el("span", "tag");
-      const n = el("span", "n"), chev = el("span", "chev");
+      const n = el("span", "n"), chev = el("span", "chev"), mtr = el("div", "bar");
       chev.append(svg(CHEV, 12, 1.7));
-      li.append(el("i", "dot"), b, st, chev, tg);
+      // the same three as an account's row — dot | name | figures — with the
+      // meter under them and the chev last, so a fold is as tall as its rows
+      // and everything on the right lines up
+      li.append(el("i", "dot"), b, st, mtr, chev, tg);
       li.tabIndex = 0;
       li.setAttribute("role", "button");
       li.onclick = () => toggleFold(f);
@@ -2066,7 +2122,11 @@ function routingPage(part) {
       const r = latest.get(k);
       for (const w of seated(r)) { const id = seat(w); if (!has.has(id)) { has.add(id); ids.push(id); } }
     }
-    for (const r of rs) for (const w of [...r.order, ...(r.left || [])]) { wOf.set(seat(w), w); rOf.set(seat(w), r.id); }
+    // small seats are on the stage too (seated draws them), so they need a row's
+    // own copy of their Weighed and their route: registered only from Left they
+    // came out undefined, and the whole stage failed to draw (measured: a group
+    // whose member was held out for the request's size drew no rows at all).
+    for (const r of rs) for (const w of [...r.order, ...(r.left || []), ...(r.small || [])]) { wOf.set(seat(w), w); rOf.set(seat(w), r.id); }
     // where each was, of those on the stage: a key folded away was nowhere
     const before = new Map([...[...rows].map(([id, row]) => [id, row.li]), ...[...folds].map(([k, f]) => ["\u0001" + k, f.li])]
       .filter(([, li]) => li.isConnected).map(([id, li]) => [id, li.getBoundingClientRect().top]));
@@ -2284,8 +2344,12 @@ function routingPage(part) {
       // rest with it (#1960)
       const r = src().get(row.rid) || pinned || cur, { answered, rests, gave, went } = findings(r);
       const w = row.w, rest = rests.get(w.id) || rests.get(w.id + "\u0000" + (w.model || "")), resting = rest && at(rest.until) > n;
+      // of this request's own seats, one left out for its size (roomy): not in
+      // Order at all, so it is known by Route.Small alone
+      const oversize = !r.order.some((x) => seat(x) === seat(w)) && (r.small || []).some((x) => seat(x) === seat(w));
       let s;
       if (w.unlisted) s = unlistedWord(w);
+      else if (oversize) s = smallWord();
       else if (resting) s = `${failWord(rest.why)} · ${restWhen(rest)}`;
       // a row another request weighed, answering that one: the header
       // tells of this request, so it says the answer is not this one's
@@ -2306,6 +2370,19 @@ function routingPage(part) {
       else if (w.aside) s = t("{api} only · after the others", { api: API[w.speaks] || w.speaks || t("any API") });
       else if (w.speaks) s = t("{api} only", { api: API[w.speaks] || w.speaks });
       else s = w.kind === "key" ? t("API key") : t("one key");
+      // this build's own line: permanent and timed side by side, the whole
+      // at the right, and the same two on the meter (see localText)
+      //
+      // Only a row that is saying nothing else takes it. The line says what
+      // the account holds, not what it is doing: drawn over a rest it hid the
+      // rest, so thirteen rate limited accounts read as thirteen balances —
+      // red, because the row still rests, and with no word of when they come
+      // back. What a row is doing — resting, answering, passed over — is said
+      // first and stands.
+      let lp = null;
+      const idle = !(w.unlisted || oversize || resting || trying.has(id) || answered.has(id) || gave.has(id) || went.has(id) || w.noURL
+        || (w.sunk && !lifted(sunkKey(w), at(w.sunk))));
+      if (idle && w.known) { try { lp = localParts([w]); if (lp) s = localText(lp); } catch (e) { console.warn("routing: local row", e); lp = null; } }
       if (row.st.textContent !== s) row.st.textContent = s;
       // an account's windows each, with when they reset, in its tooltip
       // (#1835): the row says the fullest one while idle and what it is
@@ -2316,6 +2393,7 @@ function routingPage(part) {
       const bar = w.known;
       row.li.classList.toggle("nobar", !bar);
       row.bi.style.width = bar ? fill(w) : "0";
+      if (lp) { try { localBar(row.li, lp, row.bi); } catch (e) { console.warn("routing: local bar", e); } }
       // on: the row answers or answered the request shown; flying: a
       // request is with it now. Only that moves (the dot's pulse, the
       // wire's flow): an answer that is over stays lit, still, or a
@@ -2323,9 +2401,17 @@ function routingPage(part) {
       const flying = !resting && (trying.has(id) || onWire.has(id));
       const on = flying || (!resting && answered.has(id));
       lightRow(row.li, row.wire, on, flying);
-      row.li.classList.toggle("low", !!(!w.routing && w.known && w.used >= 90));
+      // A model the vendor serves free is not near a limit: it has no
+      // allowance to run out of, so its 100% (or its unknown) is no reason to
+      // mark it kept for last. Red is for what can't be used — resting after
+      // a failure, out of allowance, an error — and a free seat is never that.
+      row.li.classList.toggle("low", !!(!w.routing && !w.free && w.known && w.used >= 90));
       row.li.classList.toggle("rest", !!resting || gave.has(id));
-      row.li.classList.toggle("left", !!w.unlisted);
+      row.li.classList.toggle("left", !!w.unlisted || oversize);
+      // what the row says is free, so the line reads in the row's own colour
+      // and not the muted one every figure has (the owner, 10-26: 免费应该用
+      // 默认字体颜色，不是红色)
+      row.li.classList.toggle("free", !!w.free);
       if (on) row.wire.style.setProperty("--agent", hueOf(r.agent));
       row.wire.classList.toggle("rest", !!resting || !!w.unlisted);
     }
@@ -2337,11 +2423,21 @@ function routingPage(part) {
       const on = ms.find((m) => has(m, "now")) || ms.find((m) => has(m, "on")), resting = ms.filter((m) => has(m, "rest")).length;
       const held = ms.filter((m) => !has(m, "rest") && has(m, "left")).length; // at a cap, or used up (#2129)
       const parts = [];
-      if (on) parts.push(`${who(on.w)}: ${on.st.textContent}`);
+      // the whole fold's allowance, as one line — worked first, because what
+      // the fold says depends on whether it can be said at all
+      let fp = null;
+      try { fp = localParts(ms.map((m) => m.w)); } catch (e) { console.warn("routing: local fold", e); }
+      // The fold speaks for the group and nothing else: which account is
+      // answering is already shown by the lit dot and the moving wire, and
+      // pasting that account's own line here read as the group's figures
+      // (looked at, they were one member's).
+      // the whole fold's allowance, as one line: permanent, timed, total
+      if (fp) { const ft = localText(fp); if (ft) parts.push(ft); }
       if (resting + held < ms.length) parts.push(t("{n} available", { n: ms.length - resting - held }));
       if (resting) parts.push(t("{n} resting", { n: resting }));
       if (held) parts.push(t("{n} held", { n: held }));
       setText(f.st, parts.join(" · "));
+      if (fp) localBar(f.li, fp);
       lightRow(f.li, f.wire, !!on, ms.some((m) => has(m, "now")));
       if (on) f.wire.style.setProperty("--agent", on.wire.style.getPropertyValue("--agent"));
       return !!ms.length && resting + held === ms.length;
@@ -3445,13 +3541,267 @@ function routingPage(part) {
   // (a plugin's by its provider) and its user, this computer's own; null
   // when there is none, or it holds no windows. Nothing is read for it:
   // the readings are app.js's quotas, as the Usage page has them.
+  // The routing page is handed `quotas` but nothing ever fills it (it is the
+  // Usage page's own list, and this page has no part in loading it), so the
+  // cards were never found here and every row's tooltip and meters had nothing
+  // to say. The list is one call away — the same one the Usage page makes, over
+  // the app's own binding; a read of it here is what fills it, and the page is
+  // drawn again when it arrives. (Not a fetch: this page is served by the app
+  // itself, and its gateway answers the app, not the page — a fetch of
+  // /v1/magpie/quotas is a 404 here, and the gateway's own URL is another
+  // origin the page may not read.)
+  // the page's own list when it has one, else what was asked for below
+  const quotasInHand = () => (Array.isArray(quotas) && quotas.length ? quotas : (localQuotas || []));
+
   function cardOf(w) {
-    if (w.kind !== "account" || !Array.isArray(quotas)) return null;
-    const user = (w.who || "").trim().toLowerCase();
-    const mine = quotas.filter((q) => !q.from && q.kind === "subscription" && (q.provider === w.agent || q.provider === w.provider));
-    const q = mine.find((q) => (q.user || "").trim().toLowerCase() === user) || (mine.length === 1 && !mine[0].user ? mine[0] : null);
+    if (w.kind !== "account") return null;
+    const list = quotasInHand();
+    if (!list.length) return null;
+    // w.who is what the account is called on screen; with accounts hidden it is
+    // a stand-in, and the allowance cards are filed under the sign-in's own
+    // name — which the row's own id keeps ("provider@user"). Both are tried,
+    // so the card is found either way; without that the row's own tooltip
+    // (winsOf) and its meters have nothing to say while accounts are hidden.
+    const names = [String(w.who || "").trim(), String(w.id || "").split("@").pop().trim()]
+      .filter(Boolean).map((x) => x.toLowerCase());
+    // The cards the app hands back say provider, user and windows — no kind,
+    // no from; the ones this page is handed as `quotas` have both. A card
+    // with no kind is taken as a subscription's, which is all that list holds.
+    const mine = list.filter((q) => !q.from && (q.kind === undefined || q.kind === "subscription")
+      && (q.provider === w.agent || q.provider === w.provider));
+    const q = mine.find((q) => names.includes((q.user || "").trim().toLowerCase())) || (mine.length === 1 && !mine[0].user ? mine[0] : null);
+    if (!q && window.__dbgQ) window.__dbgQ.push({ id: w.id, who: w.who, agent: w.agent, provider: w.provider, kind: w.kind, names, mine: mine.length, users: mine.slice(0, 4).map((x) => x.user) });
     return q && !q.error && q.windows?.length ? q : null;
   }
+  // localParts: one account's allowance, or several together, split the way
+  // this build shows it — what never expires (permanent) and what does
+  // (timed), each with what is left of it, and the two summed. A window the
+  // vendor counts nothing for (text, e.g. loomy's "永久积分") is told as its
+  // display, never as a share. Windows that expire carry when the soonest of
+  // them does. null when there is nothing to say, so the row keeps its own.
+  // spanText: how long until a moment, in the largest unit that fits — "3 天",
+  // "30 小时" — for saying "… 后到期" without the vendor's word for a reset.
+  function spanText(at) {
+    const ms = at - Date.now();
+    if (!(ms > 0)) return "";
+    const m = Math.floor(ms / 60000);
+    if (m < 60) return m + " 分钟";
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + " 小时" + (m % 60 ? " " + (m % 60) + " 分" : "");
+    const d = Math.floor(h / 24);
+    return d + " 天" + (h % 24 ? " " + (h % 24) + " 小时" : "");
+  }
+
+  // bareNumber: the count a vendor's own words hold ("8812 积分", "1,069 pts"),
+  // for the ones that report a balance without a limit to it.
+  function bareNumber(x) {
+    const m = String(x?.display ?? "").replace(/[,\s]/g, "").match(/-?\d+(?:\.\d+)?/);
+    const n = m ? Number(m[0]) : 0;
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function localParts(aws) {
+    // A model the vendor serves at no cost to this subscription's allowance
+    // (w.free, the gateway's own FreeModel) is not a balance at all: the row
+    // says "free" rather than a figure that never moves (0 积分 read as spent).
+    const free = aws.length === 1 && !!aws[0].free;
+    const lim = [], perm = [], day = [];
+    for (const w of aws) {
+      const q = cardOf(w);
+      for (const x of (q && q.windows) || []) {
+        if (x.unlimited) continue;
+        // A window that adds the others up is not one of them: counted too, it
+        // says the same credits twice ("永久 2,114 · 限时 2,114 · 合计 4,229").
+        const nm = String(x.name || "").toLowerCase();
+        if (nm.indexOf("in") >= 0 && nm.indexOf("all", nm.indexOf("in")) >= 0) continue;
+        // A window the vendor counts nothing for ("8812 积分") still holds a
+        // number, so it is read out of its own words and added up with the
+        // rest — it is never shown as a share, but it is part of the whole.
+        const bare = !x.text && !(x.limit > 0);
+        const num = bare ? bareNumber(x) : 0;
+        const counted = !x.text && x.limit > 0;
+        const timed = !!(x.resetsAt || x.runsOutAt);
+        // A window called a day's ("今日积分") is today's grant even when the
+        // vendor gives it no reset time: it is spent today, and it is not a
+        // permanent balance.
+        const daily = /签到|check.?in|daily|今日/i.test(String(x.name || ""));
+        const e = { x, counted, num };
+        (daily ? day : timed ? lim : perm).push(e);
+      }
+    }
+    // A free seat is said even when there is nothing to count: the vendor
+    // serves the model at no cost, so it has no window at all (OpenCode Zen's
+    // free DeepSeek is one), and the guard below would have thrown away the
+    // one thing the row has to say — "免费" never came out for it.
+    if (!free && !lim.length && !perm.length && !day.length) return null;
+    // The same window of several accounts is one figure, not one apiece: a
+    // fold summing eight accounts must say "限时 18,036 积分", not the same
+    // label eight times.
+    const merge = (a) => {
+      const by = new Map();
+      for (const e of a) {
+        const k = (e.x.name || "") + "\u0000" + (e.x.resetsAt || e.x.runsOutAt || "") + "\u0000" + (e.x.unit || "");
+        const at = by.get(k);
+        if (at) { at.n += 1; if (e.counted) { at.limit += e.x.limit; at.used += e.x.amount || 0; } }
+        else by.set(k, { e, n: 1, limit: e.counted ? e.x.limit : 0, used: e.counted ? e.x.amount || 0 : 0 });
+      }
+      return [...by.values()].map((x) => ({ ...x.e, x: { ...x.e.x, limit: x.limit, amount: x.used }, n: x.n }));
+    };
+    const lim2 = merge(lim), perm2 = merge(perm), day2 = merge(day);
+    const sum = (a) => a.reduce((s, e) => s + (e.counted ? e.x.limit : 0), 0);
+    // what is left: a counted window's own count, or the number a bare one holds
+    const lft = (a) => a.reduce((s, e) => s + (e.counted ? e.x.limit - (e.x.amount || 0) : e.num || 0), 0);
+    // A bare window's own words are said only when its number did NOT go into
+    // the whole: said both ways, one balance appeared three times ("7,326 积分
+    // · 余额 7326 积分 · 余额 7326 积分").
+    const bare = (a) => a.filter((e) => !e.counted && e.x.display && !(e.num > 0)).map((e) => e.x.display);
+    // the unit the counts are in (WorkBuddy's credits, CodeArts' 积分), and
+    // what a window says when it counts nothing: a share is never put where a
+    // count belongs, the vendor's own words are.
+    const unitOf = (a) => (a.find((e) => e.counted && e.x.unit) || {}).x?.unit || "";
+    // The meter's segments are the windows' own endings: everything lost at one
+    // moment is one band, the soonest first, so what a band holds and when it is
+    // lost can be said when the pointer is on it. Each: { at, total, left, daily }.
+    const bands = (() => {
+      const by = new Map();
+      for (const [list, daily] of [[day2, true], [lim2, false]]) {
+        for (const e of list) {
+          if (!e.counted) continue;
+          const at = e.x.resetsAt || e.x.runsOutAt || "";
+          // grouped by the day it ends, not the second: three packages the
+          // vendor stamped two seconds apart end together, and are one band
+          const k = at ? String(at).slice(0, 10) : "none";
+          const b = by.get(k);
+          const add = { total: e.x.limit || 0, left: Math.max(0, (e.x.limit || 0) - (e.x.amount || 0)) };
+          if (b) { b.total += add.total; b.left += add.left; b.daily = b.daily && daily; }
+          else by.set(k, { at, total: add.total, left: add.left, daily, unit: e.x.unit || "" });
+        }
+      }
+      const out = [...by.values()].filter((b) => b.total > 0);
+      // left to right as they are spent: what never expires, then the ones
+      // that end later to the ones that end soonest (7 days, 6, 5 … 1), and
+      // the daily grant last, which only fills the end of the meter
+      return out.sort((x, y) => {
+        if (x.daily !== y.daily) return x.daily ? 1 : -1;
+        const xa = x.at ? Date.parse(x.at) : Infinity, ya = y.at ? Date.parse(y.at) : Infinity;
+        return ya - xa;
+      });
+    })();
+    return { tLim: sum(lim2), lLim: lft(lim2), tPerm: sum(perm2), lPerm: lft(perm2),
+             tDay: sum(day2), lDay: lft(day2),
+             unit: unitOf(lim2) || unitOf(perm2) || unitOf(day2) || "",
+             bareLim: bare(lim2), barePerm: bare(perm2), bareDay: bare(day2),
+             free,
+             bands,
+             soon: lim.map((e) => e.x.resetsAt || e.x.runsOutAt).filter(Boolean).sort()[0] || "" };
+  }
+  // localCount: what is left, in the vendor's own unit — the rows say how much
+  // there is to spend, not a share of it ("剩余 12,345 积分", not "62%").
+  const localCountFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+  const localCount = (left, unit) => localCountFormat.format(Math.max(0, Math.round(left * 100) / 100)) + (unit ? " " + t(unit) : "");
+
+  // localText: "永久 9,918 积分 · 限时 0 积分 (9 小时后重置) · 合计 9,918 积分"
+  // — permanent first, the timed one with what is left of its window, the
+  // whole at the right, every one of them a count.
+  function localText(p) {
+    // A model the vendor serves free is not a balance: it says "free", as the
+    // OpenCode Zen Free row does, never a figure that never moves.
+    if (p.free) return t("free");
+    const bits = [];
+    // Two figures, left to right: what never expires, then what does — and the
+    // timed one only while there is any of it left. A spent timed allowance
+    // says nothing at all; the permanent one still stands on its own.
+    const permTotal = p.tPerm, permLeft = p.lPerm;
+    const wholeTotal = p.tDay + p.tPerm + p.tLim;
+    const wholeLeft = p.lDay + p.lPerm + p.lLim;
+    // the soonest end among the timed windows, and what is left of it
+    const soon = (p.bands || []).filter((b) => b.at && b.left > 0 && !b.daily)
+      .sort((x, y) => Date.parse(x.at) - Date.parse(y.at))[0];
+    let timedLeft = 0, timedUnit = "";
+    if (soon) { timedLeft = soon.left; timedUnit = soon.unit || p.unit; }
+    else if (p.tLim) { timedLeft = p.lLim; timedUnit = p.unit; }
+    // what never expires, said first
+    const hasPerm = permTotal > 0 || (p.barePerm || []).length > 0;
+    if (permTotal > 0) bits.push(localCount(permLeft, p.unit));
+    for (const b of (p.barePerm || [])) if (b) bits.push(b);
+    // what does, after it — and only while it has something in it
+    if (timedLeft > 0) {
+      let when = "";
+      try {
+        const sp = spanText(new Date(soon.at));
+        if (sp) when = "（" + sp + t("till it expires") + "）";
+      } catch (e) { console.warn("routing: spanText", e); }
+      // the unit goes with whichever figure speaks first
+      const u = bits.length ? (timedUnit && timedUnit !== p.unit ? timedUnit : "") : p.unit;
+      bits.push(t("Timed") + " " + localCount(timedLeft, u) + when);
+    }
+    for (const b of (p.bareLim || [])) if (b) bits.push(b);
+    // nothing permanent and nothing timed: the day's own grant is the account
+    if (!bits.length && wholeTotal > 0) bits.push(localCount(wholeLeft, p.unit));
+    for (const b of (p.bareDay || [])) if (b) bits.push(b);
+    return bits.join(" · ");
+  }
+
+
+  // localBar: the same two, on the row's own meter — the timed part walks
+  // first, then a hairline, then the permanent one, so what expires is spent
+  // before what does not. The row's own i is left at 0 and out of the way.
+  function localBar(li, p, bi) {
+    // the meter's whole is the line's own: check-in + permanent + timed, with
+    // today's grant left out
+    const total = p.tDay + p.tPerm + p.tLim;
+    if (!total) return;
+    const bar = li.querySelector(".bar");
+    if (!bar) return;
+    const width = (v) => (v / total * 100).toFixed(3) + "%";
+    // A band a moment's windows: everything lost at that moment, drawn in the
+    // order it is lost, so a band is a place on the meter the pointer can be put
+    // on. A window that never ends is drawn last, without a band of its own.
+    const bands = (p.bands || []).filter((b) => b.left > 0 || b.total > 0);
+    const key = (p.bands || []).map((b) => b.at + ":" + Math.round(b.left) + "/" + Math.round(b.total)).join("|") + "#" + Math.round(p.lPerm) + "/" + Math.round(p.tPerm);
+    if (bar.dataset.local !== key) {
+      bar.dataset.local = key;
+      bar.classList.add("two");
+      bar.replaceChildren();
+      // never-expiring first, at the left
+      if (p.tPerm > 0 && p.lPerm > 0) {
+        const i = el("i");
+        i.className = "t-band t-perm";
+        i.style.width = width(p.lPerm);
+        i.title = localCount(p.lPerm, p.unit) + " · " + t("never expires");
+        i.setAttribute("aria-label", i.title);
+        bar.append(i);
+      }
+      for (const b of bands) {
+        if (!(b.left > 0)) continue;
+        const i = el("i");
+        i.className = "t-band" + (b.daily ? " t-day" : "");
+        i.style.width = width(b.left);
+        // the daily grant is not named: it only fills the end of the meter
+        if (b.daily) { i.title = ""; i.setAttribute("aria-hidden", "true"); bar.append(i); continue; }
+        // On the band: what this band alone holds, and when that is lost —
+        // never the fold's whole, which is what the line beside it says.
+        // Nothing here may throw its way out and leave a band without a tip.
+        const at = b.at ? new Date(b.at) : null;
+        let shownAt = b.at || "";
+        try { if (at) shownAt = at.toLocaleString(intlLang()); } catch (e) { /* its own words */ }
+        const tip = localCount(b.left, b.unit || p.unit)
+          + (at
+              ? " · " + t("expires") + " " + shownAt
+                + (at > Date.now() ? " · " + spanText(at) + t("till it expires") : "")
+              : " · " + t("never expires"));
+        i.title = tip;
+        i.setAttribute("aria-label", tip);
+        bar.append(i);
+      }
+      const rest = el("i");
+      rest.className = "t-rest";
+      rest.style.cssText = "flex:1;background:transparent";
+      bar.append(rest);
+    }
+    if (bi) bi.style.width = "0";
+  }
+
   // winsOf: each of an account's windows, as the Usage page's card names
   // it: "5 hours 40% used · resets in 2h"
   function winsOf(w) {
@@ -4389,7 +4739,11 @@ function routingPage(part) {
   // after the requests: a request picked in the list plays on the stage,
   // so the list sits right under it
   more.append(gsec);
-  const ROUTE_OPTS = [["", "Smart"], ["order", "In order"], ["rotate", "In turn"], ["usage", "Least used"], ["pace", "Weekly pace"], ["free", "Free first"]];
+  // The routings magpie itself serves. "frugal/expiring" is one of them
+  // (internal/routes, RouteID): it spends what is lost soonest first, and
+  // without a line here a group's editor offered no way to pick it — it was
+  // served, and reachable only by editing the group's JSON.
+  const ROUTE_OPTS = [["", "Smart"], ["order", "In order"], ["rotate", "In turn"], ["usage", "Least used"], ["pace", "Weekly pace"], ["free", "Free first"], ["frugal/expiring", "Frugal"]];
   // a group may also be routed by hand: every request to the member the
   // user picks on its card (provider.Manual, #317) — a provider's keys can't
   // and by its members' weights, as a provider's keys are (#1910)
@@ -4436,6 +4790,11 @@ function routingPage(part) {
     weight: GROUP_WEIGHT,
     free: "Free first: the members whose model its vendor serves at no cost to the subscription's allowance or credits go first, then the rest — each whole, over its own accounts or keys as its provider routes them. The free ones are tried before any that spends, so nothing that costs nothing is left unused.",
     manual: "Manual: every request goes to the model you pick on the group's card, over its own accounts or keys; the others, and the rules, wait until you pick another — none takes over when it fails.",
+    // The frugal routing's own words, the same MODES has above. Without a line
+    // here gHint fell through to Smart's, so picking 勤俭持家 explained Smart
+    // underneath it (measured: the hint under the picked 勤俭持家 read
+    // 智能：成员的账号和 Key 统一排序…).
+    "frugal/expiring": "Frugal: what costs nothing is spent first, then what is lost soonest — the daily grant before a package ending in a month, and what never expires last of all. The account whose allowance would be lost first answers first, so none of it goes to waste.",
   };
   // a group in the group, and a provider set to route other than Smart, is
   // routed by its own routing, whatever this one's (planLevel, #576,
@@ -6566,7 +6925,11 @@ function routingPage(part) {
         ctl.append(k);
       }
       row.append(nm, ctl);
-      row.title = p.who.join(", ");
+      // The accounts' names go on the name, not on the whole row: a title on
+      // the row is the nearest one for every control inside it, so putting the
+      // pointer on a Routing option showed the accounts' names over the very
+      // buttons being reached for (the owner, 10-26). The row keeps none.
+      nm.title = p.who.join(", ");
       return row;
     }));
   }

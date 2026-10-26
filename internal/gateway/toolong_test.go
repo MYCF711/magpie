@@ -83,6 +83,9 @@ func TestEveryVendorsOverflow(t *testing.T) {
 		{400, "prompt too long; exceeded max context length by 100 tokens"},
 		{400, "Range of input length should be [1, 98304]"},
 		{400, "token limit exceeded"},
+		// a vendor that says content is too long without naming the context
+		// at all: neither Chinese wording above names it that way (#3654)
+		{400, "Loomy: 内容太长了，请精简输入或开启新对话"},
 	} {
 		if !tooLong(tc.status, tc.msg) {
 			t.Errorf("%q isn't taken for a conversation too long", tc.msg)
@@ -125,5 +128,37 @@ func TestOutOfBudgetIsntRetriedInPlace(t *testing.T) {
 	}
 	if _, again := passing(429, nil, []byte("Rate limit reached for requests"), 0); !again {
 		t.Error("a rate limit isn't asked again")
+	}
+}
+
+// A long conversation is as long on every account of one provider, so the
+// overflow is not asked of another account — but the group's next member,
+// which has room, does answer it (#700): the first try is filed as an
+// overflow and no account is rested over it.
+func TestLongContentGoesToTheNextMember(t *testing.T) {
+	const said = `{"code":null,"message":"Loomy: 内容太长了，请精简输入或开启新对话","type":"invalid_request_error"}`
+
+	fresh(t)
+	a := &scripted{replies: []reply{{400, "", said}}}
+	b := &scripted{replies: []reply{{200, "", chatOK}}}
+	scriptedOn(t, "a", provider.Chat, a)
+	scriptedOn(t, "b", provider.Chat, b)
+	if err := provider.SaveGroup(provider.Group{Name: "Top", Members: []string{"a/m", "b/m"}, Routing: provider.Ordered}); err != nil {
+		t.Fatal(err)
+	}
+	s := New()
+	code, body := postAs(t, s, "", `{"model":"group/top","messages":[{"role":"user","content":"hi"}]}`)
+	if code != 200 || !strings.Contains(body, "hello") || a.n != 1 || b.n != 1 {
+		t.Fatalf("long content: %d %s (a %d, b %d)", code, body, a.n, b.n)
+	}
+	r := s.trace.routes[len(s.trace.routes)-1]
+	if len(r.Tries) != 2 {
+		t.Fatalf("tries %+v", r.Tries)
+	}
+	if r.Tries[0].Fail != failOverflow {
+		t.Fatalf("first try fail = %q, want %q", r.Tries[0].Fail, failOverflow)
+	}
+	if r.Tries[0].Rest != nil || r.Tries[1].Rest != nil {
+		t.Fatalf("an account rested over an overflow: %+v", r.Tries)
 	}
 }

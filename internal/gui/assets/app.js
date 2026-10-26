@@ -11527,6 +11527,10 @@ const ROUTINGS = [
   ["pace", "Weekly pace", "Each request goes to the subscription with the most of its week left per hour until it renews — the one with the most to lose at its reset — so less of each week is lost at its reset; one at 90% or more waits until the others can't answer. A key goes by the tokens it served in the last hours."],
   ["weight", "By weight", "Requests spread over the keys by the weight set beside each: a key weighing 3 takes three requests for every one a key weighing 1 takes, evenly over a few requests. One that fails is passed over while it rests, and the others share its requests; a conversation stays with its key as Stays says."],
   ["free", "Free first", "Requests go to what costs nothing first: the models their vendor serves at no cost to this subscription's allowance or credits, in their listed order, and only when those can't answer to one that spends them. Nothing that cost nothing is left unused."],
+  // ours: registered by routes.Register in internal/routes/strategies.go,
+  // so it is served without the rotation plugin — deliberately NOT in the
+  // ROTATION set below, which hides its options when that plugin is off
+  ["frugal/expiring", "勤俭持家", "先花不花钱的，再花最快到期的，最后才动永不过期的：在当前模型上免费的那些账号先用，再用最快到期的额度，最后才动永不过期的。"],
 ];
 // the routings besides Smart are the built-in plugin rotation's
 // (plugins/rotation): off, their options leave the page, as anything marked

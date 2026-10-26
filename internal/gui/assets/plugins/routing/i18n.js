@@ -2,6 +2,19 @@
 // kernel adds them to i18n.js's (magpie.strings).
 magpie.strings({
   zh: {
+    "Permanent": "永久",
+    "Timed": "限时",
+    "Total": "总",
+    "Check-in": "签到",
+    "expires": "到期",
+    "free": "free",
+    "Balance": "余额",
+    "Frugal": "勤俭持家",
+    "Frugal: what costs nothing is spent first, then what is lost soonest — the daily grant before a package ending in a month, and what never expires last of all. The account whose allowance would be lost first answers first, so none of it goes to waste.": "勤俭持家：先花不花钱的，再花最快到期的——今日签到先用，然后是一个月后到期的包，永不过期的最后才动。额度最先作废的账号先回答，一点都不浪费。",
+    "till it expires": "后到期",
+    "this request is longer than its window, so it was passed over": "这个请求比它的窗口长，本轮跳过了它",
+    "Total credits": "总积分",
+    "never expires": "永不过期",
     "Go to the routing groups, below the requests": "跳到请求下方的路由组",
     "Filter, or type an agent's name…": "筛选，或输入 Agent 名称…",
     "the name its User-Agent begins with": "User-Agent 开头的名称",

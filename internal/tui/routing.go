@@ -16,6 +16,7 @@ import (
 
 	"github.com/yetone/magpie/internal/agent"
 	"github.com/yetone/magpie/internal/provider"
+	"github.com/yetone/magpie/internal/routes"
 )
 
 func (m *model) reloadGroups() {
@@ -34,7 +35,7 @@ func (m *model) reloadGroups() {
 	m.grow = clamp(m.grow, len(m.groups))
 }
 
-var routings = []string{"", provider.Ordered, provider.Rotate, provider.LeastUsed, provider.Pace, provider.Weighted, provider.FreeFirst, provider.Manual}
+var routings = []string{"", provider.Ordered, provider.Rotate, provider.LeastUsed, provider.Pace, provider.Weighted, provider.FreeFirst, routes.RouteID, provider.Manual}
 
 func routingName(v string) string {
 	switch v {
@@ -50,6 +51,8 @@ func routingName(v string) string {
 		return "by weight"
 	case provider.FreeFirst:
 		return "free first"
+	case routes.RouteID:
+		return "frugal"
 	case provider.Manual:
 		return "manual"
 	}

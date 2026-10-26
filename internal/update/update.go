@@ -40,13 +40,21 @@ import (
 // Site is magpie's home; its /api/latest is the update feed.
 const Site = "https://usemagpie.ai"
 
+// LocalFeed describes this build: the releases of the fork this binary was
+// built from, which carry the patch it was built with.
+//
+// Upstream's own feed would name a version above this build's — semver §11
+// puts 0.1.1564 after 0.1.1564-local1 — so leaving it in place would update
+// this build back to an unpatched one, replacing what the patch is for.
+const LocalFeed = "https://raw.githubusercontent.com/MYCF711/magpie/local/magpie-local/update.json"
+
 // Feed is where the newest release is described. MAGPIE_UPDATE_FEED points
 // it elsewhere, for testing an update against a local server.
 func Feed() string {
 	if f := os.Getenv("MAGPIE_UPDATE_FEED"); f != "" {
 		return f
 	}
-	return Site + "/api/latest"
+	return LocalFeed
 }
 
 // Release is one published version.

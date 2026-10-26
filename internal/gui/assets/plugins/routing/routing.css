@@ -96,6 +96,17 @@
 .rt-accts em { font-style: normal; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rt-accts .bar { grid-column: 2 / 4; height: 3px; border-radius: 2px; background: var(--card-2); overflow: hidden; }
 .rt-accts .bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--muted); transition: width .4s; }
+/* the patch's own two on the meter: what expires is spent first (muted),
+   then a hairline, then what never does (accent) */
+.rt-accts .bar.two { display: flex; gap: 2px; }
+.rt-accts .bar.two i { flex: none; }
+.rt-accts .bar.two i.t-lim { background: var(--muted); }
+.rt-accts .bar.two i.t-perm { background: var(--accent); }
+/* the daily grant goes first of all: it is lost tonight */
+.rt-accts .bar.two i.t-day { background: var(--amber, #a36a03); }
+.rt-accts .bar.two i.t-band { flex: none; }
+.rt-accts .bar.two i.t-band:hover { filter: brightness(1.25); }
+.rt-accts li.on .bar.two i.t-lim { background: var(--fg); }
 .rt-accts li.nobar .bar { display: none; }
 .rt-accts .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted); }
 .rt-accts li.on { border-color: var(--fg); }
@@ -105,6 +116,12 @@
 .rt-accts li.now .dot { animation: rtlive 1.8s infinite; }
 @keyframes rtlive { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--fg) 40%, transparent); } 70%, 100% { box-shadow: 0 0 0 6px transparent; } }
 .rt-accts li.low em { color: var(--fg-2); }
+/* A model the vendor serves free says "free", and it is not a fault: the
+   row's own colour, never red. Red on this page is what can't be used —
+   resting after a failure, out of allowance, an error — and a free seat is
+   none of those (the owner, 10-26: 免费应该用默认字体颜色，不是红色). */
+.rt-accts li.free em { color: var(--fg); }
+.rt-accts li.free.rest em { color: var(--red); }
 .rt-accts li.rest { border-style: dashed; }
 .rt-accts li.rest > :not(.tag) { opacity: .5; }
 .rt-accts li.rest em { color: var(--red); opacity: .85; }
@@ -117,8 +134,43 @@
 .rt-accts li.tagged .tag { opacity: 1; transform: none; }
 /* a provider's keys for one model, folded into one row (#1319): it opens
    to head them, as a group in the group heads its models */
-.rt-accts li.rt-fold { grid-template-columns: 10px minmax(0, 1fr) auto auto; cursor: pointer; user-select: none; }
-.rt-accts li.rt-fold em { white-space: normal; text-align: right; }
+.rt-accts li.rt-fold { grid-template-columns: 10px minmax(0, 1fr) auto; cursor: pointer; user-select: none; }
+/* as tall as an account's row: the meter takes the line the account rows
+   give it, and the extra gap it would add is taken back */
+/* as tall as an account's row: the two lines it has — its name and figures,
+   then its meter — sit on the same grid an account's do, so the meter lines
+   up and the row stands as tall */
+/* one line, like an account's row: the meter is laid along the bottom of the
+   row rather than given a line of its own, so a fold stands exactly as tall as
+   the rows it holds and its figures line up with theirs */
+/* the meter is laid over the row rather than in it, so the row's own padding
+   carries the room it takes: 9 + 3 + 4 + a 19.5 line + 9 − 6 = the 49px an
+   account's row stands at */
+.rt-accts li.rt-fold { row-gap: 6px; padding: 14px 12px 13px; }
+.rt-accts li.rt-fold .bar { position: absolute; left: 12px; right: 12px; bottom: 4px; margin: 0; }
+.rt-accts li.rt-fold em { align-self: center; }
+/* its figures sit where an account's do: right, on one line, and the
+   meter under them in the same place, so a fold and the rows it holds
+   line up and stand as tall */
+/* its figures and its button keep their places whatever the figures say:
+   the chev is the third column of the first line, always, so opening a
+   fold does not move it */
+/* one line, always: the name and the figures share the row's single line,
+   the figures at its right — a fold stands exactly as tall as an account's
+   row, and a long list of them is cut with an ellipsis rather than wrapped
+   onto a second line */
+/* One line: the name takes what the figures leave, the figures sit at the
+   row's right. They are two columns, not two children of one — laid in the
+   same column the figures ran over the name (WorkBuddy's "8 个账号" under
+   "总积分"). */
+.rt-accts li.rt-fold { grid-template-rows: auto; grid-template-columns: 10px minmax(0, max-content) minmax(0, 1fr) auto; }
+.rt-accts li.rt-fold b { grid-row: 1; grid-column: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rt-accts li.rt-fold em { grid-row: 1; grid-column: 3; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; color: var(--muted); font-style: normal; padding-right: 14px; }
+.rt-accts li.rt-fold .chev { grid-row: 1; grid-column: 4; }
+/* the chev is laid beside the figures, not in a column of its own: a column
+   would make the row taller than an account's, which has no such column */
+.rt-accts li.rt-fold .chev { position: absolute; right: 8px; top: 50%; margin-top: -6px; grid-column: auto; }
+.rt-accts li.rt-fold .tag { grid-row: 2; grid-column: 2 / 4; }
 .rt-accts li.rt-fold .chev { display: inline-flex; color: var(--muted); transition: transform .2s; }
 .rt-accts li.rt-fold:hover .chev { color: var(--fg); }
 .rt-accts li.rt-fold.open { background: var(--card-2); }
@@ -186,7 +238,7 @@
 .rt-accts:where(.max460) em { grid-column: 2; white-space: normal; }
 .rt-accts:where(.max460) .bar { grid-column: 2; }
 .rt-accts:where(.max460) li.rt-fold { grid-template-columns: 10px minmax(0, 1fr) auto; }
-.rt-accts:where(.max460) li.rt-fold em { grid-row: 2; text-align: left; }
+.rt-accts:where(.max460) li.rt-fold em { grid-row: auto; text-align: right; }
 .rt-accts:where(.max460) li.rt-fold .chev { grid-column: 3; grid-row: 1; }
 /* narrow (the tray panel): magpie and the agent side by side, the
    accounts under them, on a lane down their left */

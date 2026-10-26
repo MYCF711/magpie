@@ -149,6 +149,7 @@ func (t *trace) sessionLatest(ctx context.Context, session, only string, after i
 				c := *r
 				c.Order = append([]Weighed{}, r.Order...) // [] for none: the GUI reads it as a list
 				c.Left = append([]Weighed(nil), r.Left...)
+				c.Small = append([]Weighed(nil), r.Small...)
 				c.Tries = append([]Try{}, r.Tries...)
 				seq, found = r.Seq, &c
 				break
