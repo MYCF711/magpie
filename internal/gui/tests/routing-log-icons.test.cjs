@@ -14,9 +14,11 @@ const day = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((n) => St
 const at = (i) => new Date(now.getTime() - (i + 1) * 60e3).toISOString();
 const glm = { id: "zhipu/a1", provider: "zhipu", name: "Zhipu", icon: "zhipu-color", who: "18610345303", kind: "account", agent: "claude", model: "glm-5.3-flash", routing: "order", shared: true, used: 20 };
 const gpt = { id: "openai/k1", provider: "openai", name: "OpenAI", icon: "openai", who: "work", kind: "key", model: "glm-5.3-flash", routing: "order", fallback: true, used: 0 };
+const zen = { id: "opencode-zen-free", provider: "opencode-zen-free", name: "OpenCode Zen Free", icon: "opencode", who: "API key", kind: "account", agent: "claude", model: "deepseek-v4.1-flash-free", routing: "", used: 0, window: 200000 };
 const routes = [{
   id: 100, seq: 100, time: at(0), agent: "claude", model: "glm-5.3-flash", provider: "zhipu",
   order: [glm, gpt],
+  left: [zen],
   tries: [
     { id: glm.id, model: glm.model, start: at(0), done: true, status: 429, ms: 400, error: "rate limited" },
     { id: gpt.id, model: gpt.model, start: at(0), done: true, status: 200, ms: 22000 },
@@ -89,6 +91,12 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         assert.deepEqual(l.size, [14, 14], JSON.stringify(l));
         assert(l.before && l.inline, JSON.stringify(l));
       }
+      // a member skipped before it is tried (r.left) is named on a line too:
+      // its own logo, not the first order member's, or none
+      const aside = lines.find((l) => /API key is left out: this request is longer than its 200K context window/.test(l.text));
+      assert.equal(aside?.logo, "opencode", JSON.stringify(lines));
+      assert.equal(aside?.name, "API key", JSON.stringify(aside));
+      assert.deepEqual(aside?.size, [14, 14], JSON.stringify(aside));
       // what the vendor said is word for word, with no logo in it
       assert(!lines.some((l) => /said/.test(l.cls) && l.logo), JSON.stringify(lines));
       assert.deepEqual(errors, []);
