@@ -2690,7 +2690,11 @@ function routingPage(part) {
   function logoed(s, r) {
     const word = /[A-Za-z0-9_]/;
     let hit = null;
-    for (const w of r.order) {
+    // a line may name a member the gateway skipped before trying it (r.left):
+    // its logo must be looked for there too, or the line shows another
+    // member's logo, or none at all (#: the story said CodeArts for a
+    // skipped OpenCode Zen Free)
+    for (const w of [...(r.left || []), ...r.order]) {
       for (const n of new Set([who(w), w.name].filter(Boolean))) {
         for (let i = s.indexOf(n); i >= 0; i = s.indexOf(n, i + 1)) {
           if (word.test(s[i - 1] || "") || word.test(s[i + n.length] || "")) continue;
@@ -2753,7 +2757,7 @@ function routingPage(part) {
       if (tr.done && tryOk(tr) && tr.upstream) items.push([upstreamWhy(tr), "aside upstream-said", tr]);
     });
     if (r.done && !r.tries.length) items.push([t("Nothing was tried: {error}", { error: r.error || r.status }), "bad"]);
-    const key = JSON.stringify([tagKind(r), items.map(([s, c, tr]) => [s, c, tr?.model, tr?.served]), r.order.map(logoOf)]);
+    const key = JSON.stringify([tagKind(r), items.map(([s, c, tr]) => [s, c, tr?.model, tr?.served]), [...(r.left || []), ...r.order].map(logoOf)]);
     // a different request starts its steps at the top, even when they say
     // what the last one's said (the box is routing.css's, #3764); the same
     // request keeps its scroll while its steps grow
@@ -2765,7 +2769,7 @@ function routingPage(part) {
     // again and, in WebKit, blinks out for a frame, and the story is drawn
     // again on every request that comes in and at each of its steps, so
     // with an agent at work every logo in it blinked on and off
-    const logos = r.order.map(logoOf);
+    const logos = [...(r.left || []), ...r.order].map(logoOf);
     const was = new Map([...steps.children].map((li) => [li.dataset.k, li]));
     const lis = items.map(([s, c, tr]) => {
       const k = JSON.stringify([tagKind(r), s, c, tr?.model, tr?.served, logos]);
