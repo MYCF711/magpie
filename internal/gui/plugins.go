@@ -548,6 +548,12 @@ func pluginRoutes(mux *http.ServeMux, w Windows) {
 			repos[i].Icon = ic
 		}
 		out := map[string]any{"repos": repos, "topic": plugin.Topic}
+		// a token set in Settings that GitHub refused is said beside a list
+		// it did produce: the ask went on without one rather than failing
+		// (#3926)
+		if _, ok := ghtoken.SettingsRefused(); ok {
+			out["tokenRefused"] = true
+		}
 		// why the list isn't GitHub's whole answer: the page says so with
 		// Try again, rather than the section reading as there being none
 		if err != nil {

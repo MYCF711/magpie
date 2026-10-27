@@ -17,6 +17,7 @@
   let taggedErr = "";    // why the list isn't GitHub's whole answer: it couldn't be asked, or...
   let taggedKind = "";   // its kind: "slow", "limited" or ""
   let taggedMissing = 0; // ...this many repositories it named couldn't be read
+  let taggedToken = false; // the token set in Settings that GitHub refused: these came without one
   let topic = "magpie-plugin";
   const npm = {};        // /api/plugins/npm: package → what npm says of it
   const heads = {};      // /api/plugins/git: a git plugin's spec → the commit its repository is at
@@ -185,11 +186,13 @@
       taggedErr = r.error || "";
       taggedKind = r.why || "";
       taggedMissing = r.missing || 0;
+      taggedToken = !!r.tokenRefused;
       if (r.topic) topic = r.topic;
     } catch (e) {
       taggedErr = e.message || String(e);
       taggedKind = "";
       taggedMissing = 0;
+      taggedToken = false;
       tagged = tagged || [];
     }
   }
@@ -661,6 +664,14 @@
     if (error !== taggedErr) s.title = taggedErr;
     return s;
   };
+  // a token set in Settings that GitHub refused: the list came without
+  // one, and the field to replace is named (#3926)
+  function ghTokenNote() {
+    const note = el("div", "pm-ghwarn");
+    note.setAttribute("role", "status");
+    note.append(el("span", "", t("GitHub refused the token in Settings → Network and sharing: these came without one (60 an hour). Replace it to raise the limit.")));
+    return note;
+  }
   // and one GitHub couldn't be asked of says so, with another go
   function ghFailed() {
     ghHead.replaceChildren(...ghTitle());
@@ -675,6 +686,7 @@
       drawBody();
       loadTagged(true).then(drawBody);
     };
+    if (taggedToken) box.append(ghTokenNote());
     box.append(ghWhy(false), again);
     replaceKeeping(ghSec, [ghHead, box]);
     return ghSec;
@@ -709,7 +721,9 @@
     return ghSec;
   }
   function drawGh() {
-    const head = taggedErr ? [ghHead, ghNote()] : [ghHead];
+    const head = [ghHead];
+    if (taggedToken) head.push(ghTokenNote());
+    if (taggedErr) head.push(ghNote());
     if ((tagged || []).length <= 6) {
       ghGrid.replaceChildren(...ghList.map(card));
       replaceKeeping(ghSec, [...head, ghGrid]);
