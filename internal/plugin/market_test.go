@@ -175,3 +175,64 @@ func TestReadmeFromFolder(t *testing.T) {
 		t.Errorf("read %q, want the README.txt", p.Readme)
 	}
 }
+
+// A package outside the community list can say what it is: entries under
+// <config>/registry.d are read alongside the fetched list — one entry a
+// file, or a {"plugins": [...]} list — and an entry whose package the
+// fetched list already names replaces it rather than being added twice
+// (#3608, #394).
+func TestRegistryDAddsAndReplaces(t *testing.T) {
+	cache, conf := t.TempDir(), t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cache)
+	t.Setenv("XDG_CONFIG_HOME", conf)
+	reset := func() { marketMu.Lock(); marketList = nil; marketMu.Unlock() }
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"version":1,"plugins":[{"package":"opencode-x-auth","name":"X","community":true}]}`))
+	}))
+	defer srv.Close()
+	t.Setenv("MAGPIE_PLUGIN_MARKET", srv.URL)
+	ctx := context.Background()
+
+	dir := localMarketDir()
+	if dir != filepath.Join(conf, "magpie", "registry.d") {
+		t.Fatalf("localMarketDir() = %q", dir)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("mine.json", `{"package":"@me/opencode-mine-auth","name":"Mine","summary":{"en":"mine"}}`)
+	write("named.json", `{"plugins":[{"package":"opencode-x-auth","name":"X, renamed","community":true}]}`)
+	reset()
+	mine, x := 0, 0
+	for _, e := range Market(ctx) {
+		switch e.Package {
+		case "@me/opencode-mine-auth":
+			mine++
+			if e.Name != "Mine" || e.Summary["en"] != "mine" {
+				t.Errorf("local entry: %+v", e)
+			}
+		case "opencode-x-auth":
+			x++
+			if e.Name != "X, renamed" {
+				t.Errorf("fetched entry not replaced: %+v", e)
+			}
+		}
+	}
+	if mine != 1 || x != 1 {
+		t.Fatalf("the local entry %d times, the replaced one %d times", mine, x)
+	}
+
+	// a file that is not an entry is skipped: the rest still applies
+	write("broken.json", "not json")
+	reset()
+	if l := Market(ctx); len(l) != 2 {
+		t.Fatalf("after a file that doesn't parse: %d entries", len(l))
+	}
+	reset()
+}

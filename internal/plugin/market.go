@@ -209,10 +209,10 @@ func market(ctx context.Context) ([]Listing, error) {
 		if err == nil {
 			l, perr := parseMarket(b)
 			if perr == nil {
-				marketList, marketAt, marketErr = l, time.Now(), nil
+				marketList, marketAt, marketErr = mergeLocal(l), time.Now(), nil
 				_ = os.MkdirAll(filepath.Dir(marketCache()), 0o755)
 				_ = os.WriteFile(marketCache(), b, 0o644)
-				return l, nil
+				return marketList, nil
 			}
 			err = perr
 		}
@@ -220,14 +220,14 @@ func market(ctx context.Context) ([]Listing, error) {
 		if b, err := os.ReadFile(marketCache()); err == nil {
 			if l, err := parseMarket(b); err == nil {
 				// tried again in a minute, not six hours
-				marketList, marketAt, marketErr = l, time.Now().Add(-6*time.Hour+time.Minute), ferr
-				return l, ferr
+				marketList, marketAt, marketErr = mergeLocal(l), time.Now().Add(-6*time.Hour+time.Minute), ferr
+				return marketList, ferr
 			}
 		}
 	}
 	l, _ := parseMarket(builtinMarket)
-	marketList, marketAt, marketErr = l, time.Now().Add(-6*time.Hour+time.Minute), ferr
-	return l, ferr
+	marketList, marketAt, marketErr = mergeLocal(l), time.Now().Add(-6*time.Hour+time.Minute), ferr
+	return marketList, ferr
 }
 
 // RefreshMarket has the next Market fetch the list again, as with the
@@ -236,6 +236,66 @@ func RefreshMarket() {
 	marketMu.Lock()
 	marketAt = time.Time{}
 	marketMu.Unlock()
+}
+
+// localMarketDir is where an author's own entries are read from:
+// <config>/registry.d/*.json, each holding one entry or a
+// {"plugins": [...]} list of them — the same shape registry.json uses.
+//
+// The fetched list replaces the cached copy wholesale, so a package
+// outside magpie-community/plugins cannot say what it is: its card falls
+// back to the package name and shows no licence or source link. Writing
+// into the cache does not survive the next fetch, and a plugin cannot
+// reach the card itself — the window has already drawn by the time one
+// loads, and a page plugin runs in an opaque origin.
+//
+// Reading a directory alongside the list is the smallest thing that
+// works: an author writes one file, it keeps working, and the official
+// list goes on updating as it does now.
+func localMarketDir() string { return filepath.Join(appdir.Config(), "registry.d") }
+
+// mergeLocal appends the local entries to l. An entry whose package l
+// already names is replaced rather than added twice, so a package that
+// later joins the community list does not show up as two.
+func mergeLocal(l []Listing) []Listing {
+	names, err := filepath.Glob(filepath.Join(localMarketDir(), "*.json"))
+	if err != nil || len(names) == 0 {
+		return l
+	}
+	slices.Sort(names) // a stable order, so the same files give the same list
+	for _, name := range names {
+		b, err := os.ReadFile(name)
+		if err != nil {
+			continue
+		}
+		var one Listing
+		if json.Unmarshal(b, &one) == nil && one.Package != "" {
+			l = putListing(l, one)
+			continue
+		}
+		var list registry
+		if json.Unmarshal(b, &list) != nil {
+			continue
+		}
+		for _, e := range list.Plugins {
+			if e.Package != "" {
+				l = putListing(l, e)
+			}
+		}
+	}
+	return l
+}
+
+// putListing has e replace the entry naming its package, or be appended
+// when none does.
+func putListing(l []Listing, e Listing) []Listing {
+	for i := range l {
+		if l[i].Package == e.Package {
+			l[i] = e
+			return l
+		}
+	}
+	return append(l, e)
 }
 
 func fetchJSON(ctx context.Context, u string, limit int64) ([]byte, error) {

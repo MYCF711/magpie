@@ -3155,6 +3155,10 @@ What you set:
   servers and hooks, and the agents each goes to
 - `plugins.json`, `plugins/` — the plugins added, and their packages
 - `plugins.yml` — which built-in plugins are on, and each one's config
+- `registry.d/` — entries of your own for the plugin market, one a file or
+  a `{"plugins": [...]}` list, in `registry.json`'s shape: a package
+  outside the community list says what it is here, and an entry naming a
+  package the list already has replaces it (#394)
 - `caller-keys.json` — the gateway keys you made for other callers (0600)
 
 Accounts and sign-ins:
