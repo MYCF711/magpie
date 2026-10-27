@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -173,5 +174,88 @@ func TestReadmeFromFolder(t *testing.T) {
 	}
 	if p.Readme != "a text one" {
 		t.Errorf("read %q, want the README.txt", p.Readme)
+	}
+}
+
+// A package's own words (magpie.name, magpie.summary) are kept from npm's
+// copy of its package.json, which its card shows as the package's own
+// rather than the community's (#3608).
+func TestNPMKeepsItsOwnWords(t *testing.T) {
+	var l npmLatest
+	const said = `{"version":"0.3.0","description":"a plugin","magpie":{"name":"OfficeAce","summary":{"en":"Unofficial: OfficeAce","zh":"非官方：OfficeAce"}}}`
+	if err := json.Unmarshal([]byte(said), &l); err != nil {
+		t.Fatal(err)
+	}
+	info := npmOf(l)
+	if info.Name != "OfficeAce" {
+		t.Errorf("name %q, want OfficeAce", info.Name)
+	}
+	if info.Summary["en"] != "Unofficial: OfficeAce" || info.Summary["zh"] != "非官方：OfficeAce" {
+		t.Errorf("summary %v, want both languages", info.Summary)
+	}
+	// npm's description stays npm's: a package that says nothing of itself
+	// keeps the card it had
+	var none npmLatest
+	if err := json.Unmarshal([]byte(`{"version":"1.0.0","description":"a plugin"}`), &none); err != nil {
+		t.Fatal(err)
+	}
+	if info := npmOf(none); info.Name != "" || info.Summary != nil || info.Description != "a plugin" {
+		t.Errorf("a package saying nothing of itself: %+v", info)
+	}
+}
+
+// A summary is a sentence a language, not a page, and a name is one line: a
+// longer one, a newline, or a language that names nothing is left out
+// rather than put on a card (#3608).
+func TestOwnWordsBounds(t *testing.T) {
+	if got := ownName("  OfficeAce  "); got != "OfficeAce" {
+		t.Errorf("name %q, want the trimmed one", got)
+	}
+	for _, bad := range []string{"", "   ", "a\nb", "a\tb", strings.Repeat("x", 81)} {
+		if got := ownName(bad); got != "" {
+			t.Errorf("name %q taken, want nothing", got)
+		}
+	}
+	if got := ownSummary(map[string]string{"en": "  a plugin  ", "zh": "一个插件"}); got["en"] != "a plugin" || got["zh"] != "一个插件" {
+		t.Errorf("summary %v, want both trimmed", got)
+	}
+	for _, bad := range []map[string]string{
+		nil,
+		{},
+		{"en": ""},
+		{"en": "   "},
+		{"en": "a\nb"},
+		{"en": strings.Repeat("x", 301)},
+		{"": "a plugin"},
+		{strings.Repeat("x", 13): "a plugin"},
+	} {
+		if got := ownSummary(bad); got != nil {
+			t.Errorf("summary %v taken from %v, want nothing", got, bad)
+		}
+	}
+}
+
+// A package outside the community's list says what it is called in its own
+// package.json, which its row shows instead of the package name (#3608).
+func TestInstalledName(t *testing.T) {
+	dir := t.TempDir()
+	const pkg = `{"name":"magpie-officeace","version":"0.3.0","magpie":{"name":"OfficeAce"}}`
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := InstalledName(dir); got != "OfficeAce" {
+		t.Errorf("name %q, want OfficeAce", got)
+	}
+	// a folder with no package.json, or one that names nothing: the row
+	// keeps the name it had
+	if got := InstalledName(t.TempDir()); got != "" {
+		t.Errorf("name %q from a folder with no package.json, want nothing", got)
+	}
+	bare := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bare, "package.json"), []byte(`{"name":"magpie-x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := InstalledName(bare); got != "" {
+		t.Errorf("name %q from a package saying nothing, want nothing", got)
 	}
 }

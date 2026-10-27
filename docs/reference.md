@@ -1025,6 +1025,18 @@ OpenCode ignores:
   and the icon the plugin market lists for the plugin is shown instead.
   The `package.json` icon is also the card's picture under Discover →
   Unofficial, on GitHub for a repository tagged `magpie-plugin`.
+- **Its own words**: `"magpie": { "name": "OfficeAce", "summary": { "en":
+  "…", "zh": "…" } }` in the plugin's `package.json`. A package outside
+  [magpie-community/plugins](https://github.com/magpie-community/plugins) has
+  no other name to give — its card under Discover → Unofficial shows the
+  repository's name and GitHub's description otherwise, and its row in
+  Settings → Plugins the package name. The name is one line of at most 80
+  bytes; a summary is a sentence a language (at most 300 bytes, no newlines),
+  in the `en`/`zh` keys the list uses. Read from npm's copy of the
+  `package.json` when the package is published there, else from the
+  repository. They are shown as the package's own words, never with the
+  community badge, and are never used to resolve a name: a package the
+  community's list names is listed by that list.
 - **An API key's field**: a `type: "api"` method's `label` titles the key's
   field, as OpenCode's dialog does (one that only says "API key" reads
   "<provider> API key"), and its `placeholder` is the hint inside the field

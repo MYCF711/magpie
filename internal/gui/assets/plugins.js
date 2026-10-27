@@ -166,10 +166,13 @@
   // a repository tagged magpie-plugin as the market's cards read a
   // listing: its owner as the publisher, its version, and installed by its
   // spec (its npm name when its author published it there from the
-  // repository, else github:owner/repo)
+  // repository, else github:owner/repo). Its name and summary are its own
+  // package.json's magpie.name and magpie.summary when it has them, else
+  // the repository's name and GitHub's description (#3608)
   const ghListing = (r) => ({
-    package: r.spec, name: r.repo.split("/")[1], kind: r.kind, github: r, icon: r.icon || undefined,
-    summary: r.description ? { en: r.description } : undefined,
+    package: r.spec, name: r.name || r.repo.split("/")[1], kind: r.kind, github: r, icon: r.icon || undefined,
+    summary: r.summary || (r.description ? { en: r.description } : undefined),
+    own: !!(r.name || r.summary),
     npm: { version: r.version || "", publisher: r.owner, repository: r.url, license: r.license, weekly: 0 },
   });
   // A failed ask is said, with why, whether or not a list was had before:
@@ -531,6 +534,12 @@
     const sum = el("p", "pm-sum", summary(l));
     const meta = el("div", "pm-meta");
     meta.append(kindChip(kindOf(l)));
+    // the package's own words, said as such: nobody reviewed them (#3608)
+    if (l.own) {
+      const o = el("span", "pm-chip soft", t("Its own words"));
+      o.title = t("Its name and summary are what the package says of itself in its package.json: nobody reviewed them");
+      meta.append(o);
+    }
     if (l.github) meta.append(stars(l.github.stars));
     if (l.npm?.weekly) {
       const d = el("span", "pm-dl");
@@ -1107,10 +1116,10 @@
   }
 
   // an installed plugin's name as its row shows it: the market's, else the
-  // package's or the folder's
+  // package's own (magpie.name), else the package's or the folder's
   function shownName(e) {
     const pkg = name(e.spec);
-    return (listings || []).find((x) => x.package === pkg)?.name || (isGit(e.spec) && e.package) || label(e.spec);
+    return (listings || []).find((x) => x.package === pkg)?.name || e.ownName || (isGit(e.spec) && e.package) || label(e.spec);
   }
 
   function installedRow(e) {
@@ -1120,6 +1129,12 @@
     const who = el("div", "who");
     const nm = el("div", "name");
     nm.append(el("span", "", shownName(e)));
+    // the package's own words when the community's list has none (#3608)
+    if (!(listings || []).some((x) => x.package === pkg) && e.ownName) {
+      const o = el("span", "pm-chip soft", t("Its own words"));
+      o.title = t("Its name is what the package says of itself in its package.json: nobody reviewed it");
+      nm.append(o);
+    }
     if (e.version) nm.append(el("span", "pm-ver", "v" + e.version));
     // a git one's commit says which of its repository's it is
     if (isGit(e.spec) && e.commit) {

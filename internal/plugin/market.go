@@ -63,6 +63,13 @@ type NPM struct {
 	// magpie.icon, as npm has it: magpie checks and keeps it before the
 	// page shows it, as a GitHub-tagged plugin's (the GUI's listings)
 	Icon string `json:"icon,omitempty"`
+	// Name and Summary are what the package says of itself in its own
+	// package.json (magpie.name, magpie.summary), which its card shows as
+	// the package's own words: never with the community badge, and never
+	// used to resolve a name (#3608). A package the community's list names
+	// is listed by that list, which is reviewed, and this is not asked.
+	Name    string            `json:"name,omitempty"`
+	Summary map[string]string `json:"summary,omitempty"`
 }
 
 // ownIcon is a picture a package.json's magpie.icon gives, as host.js's
@@ -77,6 +84,35 @@ func ownIcon(said string) string {
 		return ic
 	}
 	return ""
+}
+
+// ownName is what a package.json's magpie.name says the package is called,
+// as its card shows it: one line, a name rather than a sentence; "" for
+// anything else.
+func ownName(said string) string {
+	n := strings.TrimSpace(said)
+	if n == "" || len(n) > 80 || strings.ContainsAny(n, "\r\n\t") {
+		return ""
+	}
+	return n
+}
+
+// ownSummary is what a package.json's magpie.summary says of the package,
+// by language ("en", "zh"), as its card shows it: a sentence a language
+// rather than a page; nil for anything else.
+func ownSummary(said map[string]string) map[string]string {
+	out := map[string]string{}
+	for lang, s := range said {
+		l, v := strings.TrimSpace(lang), strings.TrimSpace(s)
+		if l == "" || len(l) > 12 || v == "" || len(v) > 300 || strings.ContainsAny(v, "\r\n") {
+			continue
+		}
+		out[l] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 var (
@@ -392,7 +428,9 @@ type npmLatest struct {
 		Name string `json:"name"`
 	} `json:"_npmUser"`
 	Magpie struct {
-		Icon string `json:"icon"`
+		Icon    string            `json:"icon"`
+		Name    string            `json:"name"`
+		Summary map[string]string `json:"summary"`
 	} `json:"magpie"`
 }
 
@@ -493,6 +531,7 @@ func npmOf(l npmLatest) NPM {
 	info.Repository = repoURL(l.Repository)
 	info.Publisher = person(l.Author)
 	info.Icon = ownIcon(l.Magpie.Icon)
+	info.Name, info.Summary = ownName(l.Magpie.Name), ownSummary(l.Magpie.Summary)
 	if info.Publisher == "" {
 		info.Publisher = l.NPMUser.Name
 	}
@@ -716,6 +755,26 @@ func InstalledIcon(spec string) string {
 		return ""
 	}
 	return ownIcon(p.Magpie.Icon)
+}
+
+// InstalledName is what the installed plugin spec's package.json says it is
+// called (magpie.name), which its row shows as the package's own words: a
+// package outside the community's list has no other name to give (#3608).
+// "" for a spec with no package.json, or one that names nothing.
+func InstalledName(spec string) string {
+	b, err := os.ReadFile(filepath.Join(Target(spec), "package.json"))
+	if err != nil {
+		return ""
+	}
+	var p struct {
+		Magpie struct {
+			Name string `json:"name"`
+		} `json:"magpie"`
+	}
+	if json.Unmarshal(b, &p) != nil {
+		return ""
+	}
+	return ownName(p.Magpie.Name)
 }
 
 // Upgrade installs the newest version of one plugin: npm's, or its git

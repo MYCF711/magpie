@@ -102,6 +102,11 @@ type pluginEntryJSON struct {
 	// the page can show it: the plugin's, which its row shows before any
 	// of its providers' own (#1775)
 	Icon string `json:"icon,omitempty"`
+	// OwnName is what its own package.json says it is called
+	// (magpie.name), which its row shows as the package's own words when
+	// the community's list doesn't name it: never with the community
+	// badge, and never used to resolve a name (#3608)
+	OwnName string `json:"ownName,omitempty"`
 	// Package is the package installed from a git repository, which its
 	// own package.json names
 	Package string `json:"package,omitempty"`
@@ -375,6 +380,12 @@ func pluginsState(ctx context.Context, w Windows) pluginsJSON {
 	}
 	for i, ic := range provider.RepoIcons(said, 0) {
 		s.Plugins[i].Icon = ic
+	}
+	// and what each package says it is called, which its row shows as its
+	// own words: a package outside the community's list has no other name
+	// to give (#3608)
+	for i, j := range s.Plugins {
+		s.Plugins[i].OwnName = plugin.InstalledName(j.Spec)
 	}
 	return s
 }

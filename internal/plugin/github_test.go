@@ -591,3 +591,58 @@ func TestTaggedReposUnreadable(t *testing.T) {
 		t.Fatalf("raw gone, seven kept: %v (%+v), %d repos", err, m, len(l))
 	}
 }
+
+// A repository's own package.json says what the package is called and what
+// it is (magpie.name, magpie.summary), read with the rest of it: its card
+// shows the package's own words rather than the repository's name and
+// GitHub's description (#3608).
+func TestReadTaggedOwnWords(t *testing.T) {
+	const pkg = `{"name":"magpie-officeace","version":"0.3.0","main":"index.js","magpie":{"name":"OfficeAce","summary":{"en":"Unofficial: OfficeAce","zh":"非官方：OfficeAce"}}}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/package.json"):
+			w.Write([]byte(pkg))
+		case strings.HasPrefix(r.URL.Path, "/npm/"):
+			http.NotFound(w, r)
+		default:
+			w.Write([]byte("module.exports = {}"))
+		}
+	}))
+	defer srv.Close()
+	raw, reg := githubRaw, npmRegistry
+	githubRaw, npmRegistry = srv.URL+"/raw", srv.URL+"/npm"
+	defer func() { githubRaw, npmRegistry = raw, reg }()
+	got, ok, known, err := readTagged(context.Background(), Tagged{Spec: "github:someone/magpie-officeace", Repo: "someone/magpie-officeace"}, "main")
+	if err != nil || !ok || !known {
+		t.Fatalf("read: %v ok=%v known=%v", err, ok, known)
+	}
+	if got.Name != "OfficeAce" {
+		t.Errorf("name %q, want OfficeAce", got.Name)
+	}
+	if got.Summary["en"] != "Unofficial: OfficeAce" || got.Summary["zh"] != "非官方：OfficeAce" {
+		t.Errorf("summary %v, want both languages", got.Summary)
+	}
+	// a package.json that says nothing of itself keeps the card it had: the
+	// repository's name and GitHub's description
+	const bare = `{"name":"magpie-bare","version":"1.0.0","main":"index.js"}`
+	srv2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/package.json") {
+			w.Write([]byte(bare))
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/npm/") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte("module.exports = {}"))
+	}))
+	defer srv2.Close()
+	githubRaw, npmRegistry = srv2.URL+"/raw", srv2.URL+"/npm"
+	got, ok, known, err = readTagged(context.Background(), Tagged{Spec: "github:someone/magpie-bare", Repo: "someone/magpie-bare"}, "main")
+	if err != nil || !ok || !known {
+		t.Fatalf("read bare: %v ok=%v known=%v", err, ok, known)
+	}
+	if got.Name != "" || got.Summary != nil {
+		t.Errorf("a package saying nothing of itself: name %q summary %v", got.Name, got.Summary)
+	}
+}
