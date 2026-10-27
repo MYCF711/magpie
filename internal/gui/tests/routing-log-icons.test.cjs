@@ -93,7 +93,7 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       }
       // a member skipped before it is tried (r.left) is named on a line too:
       // its own logo, not the first order member's, or none
-      const aside = lines.find((l) => /API key is left out: this request is longer than its 200K context window/.test(l.text));
+      const aside = lines.find((l) => l.cls === "aside" && l.text.includes("API key"));
       assert.equal(aside?.logo, "opencode", JSON.stringify(lines));
       assert.equal(aside?.name, "API key", JSON.stringify(aside));
       assert.deepEqual(aside?.size, [14, 14], JSON.stringify(aside));
